@@ -1,0 +1,138 @@
+package org.itstep;
+
+import java.sql.*;
+
+public class Main {
+
+    private  static  final String url1 = "jdbc:mysql://localhost:3306/example2?useUnicode=true & useJDBCComplaintTimezoneShift=true"+"useLegacyDatetimeCode=false&serverTimezone= UTC";
+    private static  final  String user = "root";
+    private static final String password = "12345";
+
+    private  static Connection connection;
+    private static  PreparedStatement inserAccount;
+
+    public static void main(String[] args) throws SQLException {
+        init();
+        for (int i = 0; i < 1000; i++) {
+            addAccount(i,"User"+ (i+ 1));
+            System.out.println("..");
+        }
+
+         Long A = 225L;
+            Long B = 305L;
+        System.out.println("A = "+ getAccount(A));
+        System.out.println("B ="+ getAccount(B));
+
+        addPayment(A, -100);
+        addPayment(B, 100);
+        System.out.println("Осуществлен перевод");
+
+        System.out.println("A = "+ getAccount(A));
+        System.out.println("B ="+ getAccount(B));
+        close();
+
+
+    }
+
+    private static  void init() throws SQLException{
+        connection = DriverManager.getConnection(url1,user,password);
+        createAccountTable();
+        createPaymentsTable();
+    }
+
+    private  static  void createAccountTable() throws SQLException {
+        connection.createStatement().execute(
+                "create table if not exists example2.accounts(" +
+                        "id int unsigned not null auto_increment," +
+                        "        account_number numeric (28, 0)," +
+                        "        full_name varchar(255) not null," +
+                        "        primary key (id)" +
+                        " );"
+        );
+
+
+    }
+
+    private static void createPaymentsTable() throws SQLException {
+        connection.createStatement().execute(
+                "create table if not exists example2.payments(" +
+                        "id int unsigned not null auto_increment," +
+                        "            account_id int unsigned not null," +
+                        "            debit_sum numeric (10, 2)  not null default 0," +
+                        "            credit_sum numeric (10,2)  not null  default 0," +
+                        "            primary key (id)," +
+                        "            constraint foreign key fk_account_id(account_id) " +
+                        "            references example2.accounts(id)" +
+                        "            " +
+                        "    );"
+
+        );
+
+
+    }
+
+     private static  PreparedStatement getInserAccount() throws SQLException {
+
+         if(null == inserAccount) {
+             connection.prepareStatement(
+                     "insert into example2.accounts (account_number , full_name)" + " values (?, ?)"
+             );
+
+         }
+         return inserAccount;
+     }
+    private static  void addAccount(Number accountNumber, String fullName) throws SQLException {
+
+        PreparedStatement insert = connection.prepareStatement(
+                "insert into example2.accounts (account_number , full_name)"+ " values (?, ?)"
+        );
+       insert.setObject(1,accountNumber,Types.NUMERIC);
+       insert.setString(2,fullName);
+       insert.execute();
+       insert.close();
+
+
+    }
+
+    private static void close() throws SQLException {
+
+        if(null != inserAccount )
+            inserAccount.close();
+    }
+
+    private static Long getAccount(Number accountNumber) throws SQLException {
+        PreparedStatement select = connection.prepareStatement(
+                "select sum(p.debit_sum)- sum(p.credit_sum)" +
+                        "    from exasmple2.payments p" +
+                        "    inner join example2.accounts a on a.id= p.account_id" +
+                        "    where a.account_number = ?"
+        );
+        select.setObject(1,accountNumber,Types.NUMERIC);
+        ResultSet result = select.executeQuery();
+        if(result.next()){
+            return result.getLong(1);
+        }
+        return 0L;
+
+
+
+
+
+
+    }
+    private static void addPayment(Number accountNumber, Number amount) throws SQLException {
+        PreparedStatement insert = connection.prepareStatement(" insert into example2.payments" +"(account_id,debit_sum,credit_sum)"+
+                "    select id as account_id, ? as debit_sum, ? as credit_sum" +
+                "    from example2.accounts" +
+                "    where account_number = ?"
+
+        );
+        Long amountValue = amount.longValue();
+        insert.setObject(1,amount.longValue()>0 ? amount: 0 , Types.NUMERIC);
+        insert.setObject(2, amount.longValue()<0 ? amount: 0, Types.NUMERIC);
+    }
+
+
+
+
+}
